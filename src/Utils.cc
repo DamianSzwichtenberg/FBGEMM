@@ -21,6 +21,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <omp.h>
+
 namespace fbgemm {
 
 /**
@@ -604,6 +606,8 @@ void combine_prefix_sum(
   // TODO(dszwicht): Is assert sufficient? In most cases, it will work only in
   // debug build.
   assert(prev_sum == elements_count);
+  // Suppress unused variable warning
+  (void)elements_count;
 }
 
 void combine_prefix_sum_for_msb(
@@ -630,6 +634,8 @@ void combine_prefix_sum_for_msb(
   // TODO(dszwicht): Is assert sufficient? In most cases, it will work only in
   // debug build.
   assert(prev_sum == elements_count);
+  // Suppress unused variable warning
+  (void)elements_count;
 }
 
 template <typename K, typename V>
