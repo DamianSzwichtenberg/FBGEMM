@@ -8,7 +8,6 @@
 #include "fbgemm/FbgemmEmbedding.h"
 #include "fbgemm/Types.h"
 #include "fbgemm/Utils.h"
-#include "fbgemm_gpu/cpu_utils.h"
 #include "fbgemm_gpu/embedding_common.h"
 #ifdef FBCODE_CAFFE2
 #include <libdivide.h>
@@ -400,7 +399,7 @@ void csr2csc_template_(
   value_t* sorted_col_row_index_values = nullptr;
 
   std::tie(sorted_col_row_index_keys, sorted_col_row_index_values) =
-      fbgemm_gpu::radix_sort_parallel(
+      fbgemm::radix_sort_parallel(
           tmpBufKeys,
           tmpBufValues,
           tmpBuf1Keys,

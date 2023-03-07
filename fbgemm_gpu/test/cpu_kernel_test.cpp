@@ -11,7 +11,7 @@
 #include <ATen/AccumulateType.h>
 
 #include "deeplearning/fbgemm/fbgemm_gpu/codegen/embedding_forward_split_cpu.h"
-#include "fbgemm_gpu/cpu_utils.h"
+#include "fbgemm/Utils.h"
 #include "fbgemm_gpu/embedding_common.h"
 #include "torch/types.h" // @manual=//caffe2:torch-cpp-cpu
 
@@ -25,7 +25,7 @@ TEST(cpu_kernel_test, radix_sort_parallel_test) {
   std::array<int, 8> keys_tmp;
   std::array<int, 8> values_tmp;
 
-  std::tie(sorted_keys, sorted_values) = fbgemm_gpu::radix_sort_parallel(
+  std::tie(sorted_keys, sorted_values) = fbgemm::radix_sort_parallel(
       keys.data(),
       values.data(),
       keys_tmp.data(),
