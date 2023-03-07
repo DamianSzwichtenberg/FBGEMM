@@ -17,8 +17,12 @@
 #include <limits>
 #include <new>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+
+// TODO(dszwicht): Can we include here headers from C10?
+#include <c10/util/llvmMathExtras.h>
 
 namespace fbgemm {
 
@@ -678,7 +682,9 @@ std::pair<K*, V*> radix_sort_parallel(
   if (max_value == 0) {
     return std::make_pair(inp_key_buf, inp_value_buf);
   }
-  int num_bits = sizeof(K) * 8 - __builtin_clz(max_value);
+  // TODO(dszwicht): Can we use below function from C10?
+  // It is used as a replacement for __builtin_clz, which is not portable.
+  int num_bits = sizeof(K) * 8 - llvm::countLeadingZeros(static_cast<std::make_unsigned_t<K>>(max_value));
   unsigned int num_passes = (num_bits + 7) / 8;
 
 #pragma omp parallel
