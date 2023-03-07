@@ -1,0 +1,8 @@
+#pragma once
+
+// This flag is intended to be used in external libraries that have
+// a dependency on FBGEMM. For example, PyTorch uses radix_sort from FBGEMM,
+// with FBGEMM_PARALLEL_OPENMP flag, PyTorch can check whether radix_sort is
+// accelerated with the OpenMP library.
+
+#define FBGEMM_PARALLEL_OPENMP @FBGEMM_PARALLEL_OPENMP@

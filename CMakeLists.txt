@@ -97,16 +97,20 @@ if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
 endif()
 
 #check if compiler supports openmp
+set(FBGEMM_PARALLEL_OPENMP 0)
 find_package(OpenMP)
 if (OpenMP_FOUND)
   message(WARNING "OpenMP found! OpenMP_C_INCLUDE_DIRS = ${OpenMP_C_INCLUDE_DIRS}")
   include_directories(${OpenMP_C_INCLUDE_DIRS})
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+  set(FBGEMM_PARALLEL_OPENMP 1)
 else()
   message(WARNING "OpenMP is not supported by the compiler")
 endif()
+
+configure_file(${FBGEMM_SOURCE_DIR}/include/fbgemm/Config.h.in "${FBGEMM_SOURCE_DIR}/include/fbgemm/Config.h")
 
 # Define file lists
 get_filelist("get_fbgemm_generic_srcs(with_base=True)" FBGEMM_GENERIC_SRCS)
