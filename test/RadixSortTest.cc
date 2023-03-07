@@ -4,6 +4,8 @@
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree.
  */
+
+#include <limits>
 #include <gtest/gtest.h>
 
 #include "fbgemm/Utils.h"
@@ -50,12 +52,16 @@ TEST(cpu_kernel_test, radix_sort_parallel_test_neg_vals) {
       keys_tmp.data(),
       values_tmp.data(),
       keys.size(),
-      10);
+      std::numeric_limits<int>::max(),
+      /*maybe_with_neg_vals=*/true);
 
   std::array<int, 8> expect_keys_tmp = {-4, -3, -2, -1, 0, 1, 2, 3};
   std::array<int, 8> expect_values_tmp = {0, 0, 1, 1, 0, 0, 1, 1};
-  EXPECT_EQ(sorted_keys, keys_tmp.data());
-  EXPECT_EQ(sorted_values, values_tmp.data());
-  EXPECT_EQ(keys_tmp, expect_keys_tmp);
-  EXPECT_EQ(values_tmp, expect_values_tmp);
+  if (sorted_keys == keys.data()) { // even number of passes
+    EXPECT_EQ(expect_keys_tmp, keys);
+    EXPECT_EQ(expect_values_tmp, values);
+  } else { // odd number of passes
+    EXPECT_EQ(expect_keys_tmp, keys_tmp);
+    EXPECT_EQ(expect_values_tmp, values_tmp);
+  }
 }
