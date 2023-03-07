@@ -359,6 +359,7 @@ std::pair<K*, V*> radix_sort_parallel(
     K* tmp_key_buf,
     V* tmp_value_buf,
     int64_t elements_count,
-    int64_t max_value);
+    int64_t max_value,
+    bool maybe_with_neg_vals = false);
 
 } // namespace fbgemm

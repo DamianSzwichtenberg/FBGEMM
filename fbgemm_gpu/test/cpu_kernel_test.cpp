@@ -41,6 +41,32 @@ TEST(cpu_kernel_test, radix_sort_parallel_test) {
   EXPECT_EQ(values_tmp, expect_values_tmp);
 }
 
+TEST(cpu_kernel_test, radix_sort_parallel_test_neg_vals) {
+  std::array<int, 8> keys = {-4, -3, 0, 1, -2, -1, 3, 2};
+  std::array<int, 8> values = {0, 0, 0, 0, 1, 1, 1, 1};
+
+  int* sorted_keys;
+  int* sorted_values;
+
+  std::array<int, 8> keys_tmp;
+  std::array<int, 8> values_tmp;
+
+  std::tie(sorted_keys, sorted_values) = fbgemm::radix_sort_parallel(
+      keys.data(),
+      values.data(),
+      keys_tmp.data(),
+      values_tmp.data(),
+      keys.size(),
+      10);
+
+  std::array<int, 8> expect_keys_tmp = {-4, -3, -2, -1, 0, 1, 2, 3};
+  std::array<int, 8> expect_values_tmp = {0, 0, 1, 1, 0, 0, 1, 1};
+  EXPECT_EQ(sorted_keys, keys_tmp.data());
+  EXPECT_EQ(sorted_values, values_tmp.data());
+  EXPECT_EQ(keys_tmp, expect_keys_tmp);
+  EXPECT_EQ(values_tmp, expect_values_tmp);
+}
+
 TEST(cpu_kernel_test, csr2csc_test) {
   internal::HyperCompressedSparseColumn csc;
   int B = 2;

@@ -22,6 +22,7 @@
 #include <unordered_set>
 
 // TODO(dszwicht): Can we include here headers from C10?
+#include "c10/util/Exception.h"
 #include <c10/util/llvmMathExtras.h>
 
 namespace fbgemm {
@@ -573,6 +574,47 @@ namespace {
 // histogram size per thread
 constexpr int RDX_HIST_SIZE = 256;
 
+void combine_prefix_sum(
+    int nthreads,
+    int elements_count,
+    int* histogram,
+    int* histogram_ps) {
+  int sum = 0, prev_sum = 0;
+  for (int bins = 0; bins < RDX_HIST_SIZE; bins++) {
+    for (int t = 0; t < nthreads; t++) {
+      sum += histogram[t * RDX_HIST_SIZE + bins];
+      histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum;
+      prev_sum = sum;
+    }
+  }
+  histogram_ps[RDX_HIST_SIZE * nthreads] = prev_sum;
+  TORCH_CHECK(prev_sum == elements_count);
+}
+
+void combine_prefix_sum_for_msb(
+    int nthreads,
+    int elements_count,
+    int* histogram,
+    int* histogram_ps) {
+  int sum = 0, prev_sum = 0;
+  for (int bins = 128; bins < RDX_HIST_SIZE; bins++) {
+    for (int t = 0; t < nthreads; t++) {
+      sum += histogram[t * RDX_HIST_SIZE + bins];
+      histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum;
+      prev_sum = sum;
+    }
+  }
+  for (int bins = 0; bins < 128; bins++) {
+    for (int t = 0; t < nthreads; t++) {
+      sum += histogram[t * RDX_HIST_SIZE + bins];
+      histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum;
+      prev_sum = sum;
+    }
+  }
+  histogram_ps[RDX_HIST_SIZE * (nthreads - 1) + 127] = prev_sum;
+  TORCH_CHECK(prev_sum == elements_count);
+}
+
 template <typename K, typename V>
 void radix_sort_kernel(
     K* input_keys,
@@ -582,10 +624,11 @@ void radix_sort_kernel(
     int elements_count,
     int* histogram,
     int* histogram_ps,
-    int pass) {
-  int tid = omp_get_thread_num();
-  int nthreads = omp_get_num_threads();
-  int elements_count_4 = elements_count / 4 * 4;
+    int pass,
+    bool pass_with_sign_bit = false) {
+  const int tid = omp_get_thread_num();
+  const int nthreads = omp_get_num_threads();
+  const int elements_count_4 = elements_count / 4 * 4;
 
   int* local_histogram = &histogram[RDX_HIST_SIZE * tid];
   int* local_histogram_ps = &histogram_ps[RDX_HIST_SIZE * tid];
@@ -616,16 +659,11 @@ void radix_sort_kernel(
 #pragma omp barrier
   // Step 2: prefix sum
   if (tid == 0) {
-    int sum = 0, prev_sum = 0;
-    for (int bins = 0; bins < RDX_HIST_SIZE; bins++) {
-      for (int t = 0; t < nthreads; t++) {
-        sum += histogram[t * RDX_HIST_SIZE + bins];
-        histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum;
-        prev_sum = sum;
-      }
+    if (pass_with_sign_bit) {
+      combine_prefix_sum_for_msb(nthreads, elements_count, histogram, histogram_ps);
+    } else {
+      combine_prefix_sum(nthreads, elements_count, histogram, histogram_ps);
     }
-    histogram_ps[RDX_HIST_SIZE * nthreads] = prev_sum;
-    TORCH_CHECK(prev_sum == elements_count);
   }
 #pragma omp barrier
 
@@ -675,17 +713,22 @@ std::pair<K*, V*> radix_sort_parallel(
     K* tmp_key_buf,
     V* tmp_value_buf,
     int64_t elements_count,
-    int64_t max_value) {
-  int maxthreads = omp_get_max_threads();
+    int64_t max_value,
+    bool maybe_with_neg_vals) {
+  const int maxthreads = omp_get_max_threads();
   alignas(64) int histogram[RDX_HIST_SIZE * maxthreads];
   alignas(64) int histogram_ps[RDX_HIST_SIZE * maxthreads + 1];
   if (max_value == 0) {
     return std::make_pair(inp_key_buf, inp_value_buf);
   }
-  // TODO(dszwicht): Can we use below function from C10?
+  // TODO(dszwicht): Can we use llvm::countLeadingZeros function from C10?
   // It is used as a replacement for __builtin_clz, which is not portable.
-  int num_bits = sizeof(K) * 8 - llvm::countLeadingZeros(static_cast<std::make_unsigned_t<K>>(max_value));
-  unsigned int num_passes = (num_bits + 7) / 8;
+  // If negative values are present, we want to perform all passes
+  // up to a sign bit
+  int num_bits = sizeof(K) * 8;
+  if (!maybe_with_neg_vals)
+    num_bits -= llvm::countLeadingZeros(static_cast<std::make_unsigned_t<K>>(max_value));
+  const unsigned int num_passes = (num_bits + 7) / 8;
 
 #pragma omp parallel
   {
@@ -703,7 +746,8 @@ std::pair<K*, V*> radix_sort_parallel(
           elements_count,
           histogram,
           histogram_ps,
-          pass);
+          pass,
+          maybe_with_neg_vals && pass == num_passes - 1);
 
       std::swap(input_keys, output_keys);
       std::swap(input_values, output_values);
@@ -721,7 +765,8 @@ template std::pair<int*, int*> radix_sort_parallel(
     int* tmp_key_buf,
     int* tmp_value_buf,
     int64_t elements_count,
-    int64_t max_value);
+    int64_t max_value,
+    bool maybe_with_neg_vals);
 
 template std::pair<int64_t*, int*> radix_sort_parallel(
     int64_t* inp_key_buf,
@@ -729,7 +774,8 @@ template std::pair<int64_t*, int*> radix_sort_parallel(
     int64_t* tmp_key_buf,
     int* tmp_value_buf,
     int64_t elements_count,
-    int64_t max_value);
+    int64_t max_value,
+    bool maybe_with_neg_vals);
 
 template std::pair<int*, std::pair<int, double>*> radix_sort_parallel(
     int* inp_key_buf,
@@ -737,7 +783,8 @@ template std::pair<int*, std::pair<int, double>*> radix_sort_parallel(
     int* tmp_key_buf,
     std::pair<int, double>* tmp_value_buf,
     int64_t elements_count,
-    int64_t max_value);
+    int64_t max_value,
+    bool maybe_with_neg_vals);
 
 template std::pair<int*, std::pair<int, float>*> radix_sort_parallel(
     int* inp_key_buf,
@@ -745,6 +792,7 @@ template std::pair<int*, std::pair<int, float>*> radix_sort_parallel(
     int* tmp_key_buf,
     std::pair<int, float>* tmp_value_buf,
     int64_t elements_count,
-    int64_t max_value);
+    int64_t max_value,
+    bool maybe_with_neg_vals);
 
 } // namespace fbgemm
