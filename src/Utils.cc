@@ -21,10 +21,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-// TODO(dszwicht): Can we include here headers from C10?
-#include "c10/util/Exception.h"
-#include <c10/util/llvmMathExtras.h>
-
 namespace fbgemm {
 
 /**
@@ -571,6 +567,23 @@ thread_type_t fbgemmGetThreadPartition(
 
 namespace {
 
+// implementation taken from pytorch/c10/util/llvmMathExtras.h
+template <typename T>
+size_t count_leading_zeros(T val) {
+    if (!val)
+      return std::numeric_limits<T>::digits;
+
+    size_t zero_bits = 0;
+    for (T shift = std::numeric_limits<T>::digits >> 1; shift; shift >>= 1) {
+      T tmp = val >> shift;
+      if (tmp)
+        val = tmp;
+      else
+        zero_bits |= shift;
+    }
+    return zero_bits;
+}
+
 // histogram size per thread
 constexpr int RDX_HIST_SIZE = 256;
 
@@ -588,7 +601,9 @@ void combine_prefix_sum(
     }
   }
   histogram_ps[RDX_HIST_SIZE * nthreads] = prev_sum;
-  TORCH_CHECK(prev_sum == elements_count);
+  // TODO(dszwicht): Is assert sufficient? In most cases, it will work only in
+  // debug build.
+  assert(prev_sum == elements_count);
 }
 
 void combine_prefix_sum_for_msb(
@@ -612,7 +627,9 @@ void combine_prefix_sum_for_msb(
     }
   }
   histogram_ps[RDX_HIST_SIZE * (nthreads - 1) + 127] = prev_sum;
-  TORCH_CHECK(prev_sum == elements_count);
+  // TODO(dszwicht): Is assert sufficient? In most cases, it will work only in
+  // debug build.
+  assert(prev_sum == elements_count);
 }
 
 template <typename K, typename V>
@@ -721,13 +738,12 @@ std::pair<K*, V*> radix_sort_parallel(
   if (max_value == 0) {
     return std::make_pair(inp_key_buf, inp_value_buf);
   }
-  // TODO(dszwicht): Can we use llvm::countLeadingZeros function from C10?
-  // It is used as a replacement for __builtin_clz, which is not portable.
   // If negative values are present, we want to perform all passes
   // up to a sign bit
   int num_bits = sizeof(K) * 8;
   if (!maybe_with_neg_vals)
-    num_bits -= llvm::countLeadingZeros(static_cast<std::make_unsigned_t<K>>(max_value));
+    // __builtin_clz is not portable
+    num_bits -= count_leading_zeros(static_cast<std::make_unsigned_t<K>>(max_value));
   const unsigned int num_passes = (num_bits + 7) / 8;
 
 #pragma omp parallel
