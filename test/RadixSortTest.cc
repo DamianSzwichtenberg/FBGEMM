@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+#include <cstdint>
 #include <limits>
 #include <gtest/gtest.h>
 
@@ -37,14 +38,14 @@ TEST(cpu_kernel_test, radix_sort_parallel_test) {
 }
 
 TEST(cpu_kernel_test, radix_sort_parallel_test_neg_vals) {
-  std::array<int, 8> keys = {-4, -3, 0, 1, -2, -1, 3, 2};
-  std::array<int, 8> values = {0, 0, 0, 0, 1, 1, 1, 1};
+  std::array<int64_t, 8> keys = {-4, -3, 0, 1, -2, -1, 3, 2};
+  std::array<int64_t, 8> values = {0, 0, 0, 0, 1, 1, 1, 1};
 
-  int* sorted_keys;
-  int* sorted_values;
+  int64_t* sorted_keys;
+  int64_t* sorted_values;
 
-  std::array<int, 8> keys_tmp;
-  std::array<int, 8> values_tmp;
+  std::array<int64_t, 8> keys_tmp;
+  std::array<int64_t, 8> values_tmp;
 
   std::tie(sorted_keys, sorted_values) = fbgemm::radix_sort_parallel(
       keys.data(),
@@ -52,11 +53,11 @@ TEST(cpu_kernel_test, radix_sort_parallel_test_neg_vals) {
       keys_tmp.data(),
       values_tmp.data(),
       keys.size(),
-      std::numeric_limits<int>::max(),
+      std::numeric_limits<int64_t>::max(),
       /*maybe_with_neg_vals=*/true);
 
-  std::array<int, 8> expect_keys_tmp = {-4, -3, -2, -1, 0, 1, 2, 3};
-  std::array<int, 8> expect_values_tmp = {0, 0, 1, 1, 0, 0, 1, 1};
+  std::array<int64_t, 8> expect_keys_tmp = {-4, -3, -2, -1, 0, 1, 2, 3};
+  std::array<int64_t, 8> expect_values_tmp = {0, 0, 1, 1, 0, 0, 1, 1};
   if (sorted_keys == keys.data()) { // even number of passes
     EXPECT_EQ(expect_keys_tmp, keys);
     EXPECT_EQ(expect_values_tmp, values);
