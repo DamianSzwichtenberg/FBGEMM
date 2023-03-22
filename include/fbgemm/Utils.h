@@ -377,19 +377,22 @@ size_t count_leading_zeros(T val) {
 // histogram size per thread
 constexpr int RDX_HIST_SIZE = 256;
 
+#define COMBINE_PREFIX_SUM_IN_RANGE(sum, prev_sum, bins_beg, bins_end, hist, hist_ps, nthreads) \
+  for (int bins = bins_beg; bins < bins_end; ++bins) { \
+    for (int t = 0; t < nthreads; ++t) { \
+      sum += histogram[t * RDX_HIST_SIZE + bins]; \
+      histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum; \
+      prev_sum = sum; \
+    } \
+  }
+
 void combine_prefix_sum(
     int nthreads,
     int elements_count,
     int* histogram,
     int* histogram_ps) {
   int sum = 0, prev_sum = 0;
-  for (int bins = 0; bins < RDX_HIST_SIZE; bins++) {
-    for (int t = 0; t < nthreads; t++) {
-      sum += histogram[t * RDX_HIST_SIZE + bins];
-      histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum;
-      prev_sum = sum;
-    }
-  }
+  COMBINE_PREFIX_SUM_IN_RANGE(sum, prev_sum, 0, RDX_HIST_SIZE, histogram, histogram_ps, nthreads);
   histogram_ps[RDX_HIST_SIZE * nthreads] = prev_sum;
   // TODO(dszwicht): Is assert sufficient? In most cases, it will work only in
   // debug build.
@@ -404,20 +407,8 @@ void combine_prefix_sum_for_msb(
     int* histogram,
     int* histogram_ps) {
   int sum = 0, prev_sum = 0;
-  for (int bins = 128; bins < RDX_HIST_SIZE; bins++) {
-    for (int t = 0; t < nthreads; t++) {
-      sum += histogram[t * RDX_HIST_SIZE + bins];
-      histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum;
-      prev_sum = sum;
-    }
-  }
-  for (int bins = 0; bins < 128; bins++) {
-    for (int t = 0; t < nthreads; t++) {
-      sum += histogram[t * RDX_HIST_SIZE + bins];
-      histogram_ps[t * RDX_HIST_SIZE + bins] = prev_sum;
-      prev_sum = sum;
-    }
-  }
+  COMBINE_PREFIX_SUM_IN_RANGE(sum, prev_sum, 128, RDX_HIST_SIZE, histogram, histogram_ps, nthreads);
+  COMBINE_PREFIX_SUM_IN_RANGE(sum, prev_sum, 0, 128, histogram, histogram_ps, nthreads);
   histogram_ps[RDX_HIST_SIZE * (nthreads - 1) + 127] = prev_sum;
   // TODO(dszwicht): Is assert sufficient? In most cases, it will work only in
   // debug build.
