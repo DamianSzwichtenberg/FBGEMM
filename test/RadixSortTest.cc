@@ -9,7 +9,7 @@
 #include <limits>
 #include <gtest/gtest.h>
 
-#include "fbgemm/Utils.h"
+#include "fbgemm/RadixSort.h"
 
 TEST(cpu_kernel_test, radix_sort_parallel_test) {
   std::array<int, 8> keys = {1, 2, 4, 5, 4, 3, 2, 9};
