@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include "./Config.h"
 #include "./FbgemmBuild.h"
 #include "./UtilsAvx2.h"
 
@@ -17,7 +18,13 @@
 #include <string>
 #include <type_traits>
 
+#if FBGEMM_PARALLEL_OPENMP
 #include <omp.h>
+#else
+#define omp_get_max_threads() 1
+#define omp_get_num_threads() 1
+#define omp_get_thread_num() 0
+#endif
 
 namespace fbgemm {
 
