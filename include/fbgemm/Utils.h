@@ -484,10 +484,10 @@ void radix_sort_kernel(
     K key_3 = input_keys[i + 2];
     K key_4 = input_keys[i + 3];
 
-    int bin_1 = (key_1 >> (pass * 8)) & 0xFF;
-    int bin_2 = (key_2 >> (pass * 8)) & 0xFF;
-    int bin_3 = (key_3 >> (pass * 8)) & 0xFF;
-    int bin_4 = (key_4 >> (pass * 8)) & 0xFF;
+    const int bin_1 = (key_1 >> (pass * 8)) & 0xFF;
+    const int bin_2 = (key_2 >> (pass * 8)) & 0xFF;
+    const int bin_3 = (key_3 >> (pass * 8)) & 0xFF;
+    const int bin_4 = (key_4 >> (pass * 8)) & 0xFF;
 
     int pos;
     pos = local_histogram_ps[bin_1]++;
@@ -506,7 +506,7 @@ void radix_sort_kernel(
   if (tid == (nthreads - 1)) {
     for (int64_t i = elements_count_4; i < elements_count; ++i) {
       K key = input_keys[i];
-      int pos = local_histogram_ps[(key >> (pass * 8)) & 0xFF]++;
+      const int pos = local_histogram_ps[(key >> (pass * 8)) & 0xFF]++;
       output_keys[pos] = key;
       output_values[pos] = input_values[i];
     }
